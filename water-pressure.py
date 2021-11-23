@@ -1,39 +1,56 @@
-#!/usr/bin/env python
+import RPi.GPIO as GPIO
+import time, sys
+GPIO.setmode(GPIO.BOARD)
+input = 7
+GPIO.setup(input, GPIO.IN)
 
+class WaterData:
 
-import time, datetime
-import pigpio
+        def __init__(self):
+                self.total_gallons = 0
+                self.total_time = 0
+                self.gallons_min = 0
+                self.minutes = 0
+                self.constant = 0.10
+                self.time_new = 0
+                self.rate_count = 0
+                self.total_count = 0
 
-intervalTime  = 15  # in seconds
-triggerMin    = 50  # limit in pulse counts - adjust to detect small leaks
+        def read_total_gallons(self):
+                print(self.total_gallons)
 
-SMTPserver    = 'smtp.gmail.com'
-waterFlow     = 0
-flowGpio      = 4
+        def read_total_time(self):
+                print(self.total_time)
 
-text_subtype = 'plain'
+        def read_gallon_min(self):
+                print(self.gallon_min)
 
-pi = pigpio.pi()
+if __name__ == '__main__':
 
-pi.set_mode(flowGpio, pigpio.INPUT)
-pi.set_pull_up_down(flowGpio, pigpio.PUD_DOWN)
+        h2o = WaterData()
 
-flowCallback = pi.callback(flowGpio, pigpio.FALLING_EDGE)
+        while True:
+                h2o.time_new = time.time() + 10
+                h2o.rate_count = 0
+                while time.time() <= h2o.time_new:
+                        if GPIO.input(input)!=0:
+                                h2o.rate_count += 1
+                                h2o.total_count += 1
+                        try:
+                                print(GPIO.input(input), end='')
+                        except KeyboardInterrupt:
+                                print("\nExiting gracefully")
+                                print("\nTotal Gallons: " + str(h2o.total_gallons))
+                                print("\nTotal Time: " + str(h2o.total_time))
+                                print("\nGallons per minute: " + str(h2o.gallons_min))
+                                GPIO.cleanup()
+                                sys.exit()
+                h2o.minutes += 1
+                print("\nLiters / min ", round(h2o.rate_count * h2o.constant,4))
+                print("\nTotal liters ", round(h2o.total_count * h2o.constant,4))
+                print("\nTime (min & clock) ", h2o.minutes, "\t", time.asctime(time.localtime()),"\n")
 
-old_count   = 0
-triggerTime = datetime.datetime.today() - datetime.timedelta(weeks=1)  
+        GPIO.cleanup()
+        print("Done")
 
-while True:
-
-   time.sleep(intervalTime)
-
-   count = flowCallback.tally()
-   waterFlow = count - old_count
-   #print("counted {} pulses".format(waterFlow))
-   yesterday = datetime.datetime.today() - datetime.timedelta(days=1)
-   if ( (waterFlow > triggerMin) & (triggerTime < yesterday) ):
-
-   old_count = count
-
-pi.stop()
-
+                              
