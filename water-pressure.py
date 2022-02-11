@@ -1,8 +1,10 @@
 import RPi.GPIO as GPIO
 import time, sys
 GPIO.setmode(GPIO.BOARD)
-input = 7
-GPIO.setup(input, GPIO.IN)
+gpioInput = 7
+GPIO.setup(gpioInput, GPIO.IN)
+import PySimpleGUI as sg
+import json
 
 class WaterData:
 
@@ -30,71 +32,73 @@ if __name__ == '__main__':
         h2o = WaterData()
 
         while True:
-                h2o.time_new = time.time() + 10
-                h2o.rate_count = 0
-                while time.time() <= h2o.time_new:
-                        if GPIO.input(input)!=0:
-                                h2o.rate_count += 1
-                                h2o.total_count += 1
-                        try:
-                                print(GPIO.input(input), end='')
-                        except KeyboardInterrupt:
-                                print("\nExiting gracefully")
-                                print("\nTotal Gallons: " + str(h2o.total_gallons))
-                                print("\nTotal Time: " + str(h2o.total_time))
-                                print("\nGallons per minute: " + str(h2o.gallons_min))
-                                GPIO.cleanup()
-                                sys.exit()
-                h2o.minutes += 1
-                print("\nLiters / min ", round(h2o.rate_count * h2o.constant,4))
-                print("\nTotal liters ", round(h2o.total_count * h2o.constant,4))
-                print("\nTime (min & clock) ", h2o.minutes, "\t", time.asctime(time.localtime()),"\n")
+                try:
+                        h2o.time_new = time.time() + 10
+                        h2o.rate_count = 0
+                        while time.time() <= h2o.time_new:
+                                if GPIO.input(gpioInput)!=0:
+                                        h2o.rate_count += 1
+                                        h2o.total_count += 1
+                                try:
+                                        print(GPIO.input(gpioInput), end='')
+                                except KeyboardInterrupt:
+                                        break
+                                        
+                                        
+                        h2o.minutes += 1
+                except KeyboardInterrupt:
+                        break
 
+        print("\nTotal Time: " + str(h2o.minutes))
+        print("\nLiters / min ", round(h2o.rate_count * h2o.constant,4))
+        print("\nTotal liters ", round(h2o.total_count * h2o.constant,4))
+        print("\nTime (min & clock) ", "\t", time.asctime(time.localtime()),"\n")
         GPIO.cleanup()
-        print("Done")
+        print("Done") 
 
-                              
+        data_set = {"liters_used": round(h2o.rate_count * h2o.constant,4), "total_liters": round(h2o.total_count * h2o.constant,4)}
+        json_dump = json.dumps(data_set)
+        with open('data.json', 'w') as f:
+                json.dump(data_set, f)
+        f.close
 
 
-import PySimpleGUI as sg
-import json
+        layout = [[sg.Text("Current temprature       ", key='temp', justification='left')],
+                [sg.Text("Last Time Used           ", key='last', justification='left')],
+                [sg.Text("Schedule Your Next Shower", key='time', justification='center')],
+                [sg.Input(key='INPUT')],
+                [sg.Button('OK')],
+                [sg.Text(size=(40, 1), key='OUTPUT')]]
 
-layout = [[sg.Text("Current temprature       ", key='temp', justification='left')],
-          [sg.Text("Last Time Used           ", key='last', justification='left')],
-          [sg.Text("Schedule Your Next Shower", key='time', justification='center')],
-          [sg.Input(key='INPUT')],
-          [sg.Button('OK')],
-          [sg.Text(size=(40, 1), key='OUTPUT')]]
+        window = sg.Window('The Screen', layout)
 
-window = sg.Window('The Screen', layout)
+        while True:
+                event, values = window.read(timeout=100)
+                if event == sg.WINDOW_CLOSED:
+                  break
 
-while True:
-    event, values = window.read(timeout=100)
-    if event == sg.WINDOW_CLOSED:
-        break
+                f = open("data.json")
+                data = json.load(f)
 
-    f = open("data.json")
-    data = json.load(f)
+                window["temp"].update("liters_used       "+str(data["liters_used"]))
+                window["last"].update("total_liters           "+str(data["total_liters"])+":00")
+                # if values['INPUT'] != "":
+                if event == 'OK':
+                        window['OUTPUT'].update('You have set showertime to be ' + values['INPUT'] + ":00 !")
 
-    window["temp"].update("Current temprature       "+str(data["temperature"]))
-    window["last"].update("Last Time Used           "+str(data["last_used"])+":00")
-    # if values['INPUT'] != "":
-    if event == 'OK':
-        window['OUTPUT'].update('You have set showertime to be ' + values['INPUT'] + ":00 !")
+                window.refresh()
 
-    window.refresh()
+                data["scheduled"] = values['INPUT']
+                # We can also change the current temp and last time used here
+                """
+                if change is True:
+                        data["temperature"] = new temp
+                        data["last_used"] = new time
+                """
 
-    data["scheduled"] = values['INPUT']
-    # We can also change the current temp and last time used here
-    """
-    if change is True:
-        data["temperature"] = new temp
-        data["last_used"] = new time
-    """
+                with open("data.json", "w") as j:
+                        json.dump(data, j)
 
-    with open("data.json", "w") as j:
-        json.dump(data, j)
+                f.close()
 
-    f.close()
-
-window.close()
+        window.close()
